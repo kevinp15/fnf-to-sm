@@ -338,8 +338,11 @@ def sm_to_fnf(infile):
 					for i in range(len(measure_notes)):
 						notes_row = measure_notes[i]
 						for j in range(len(notes_row)):
-							if notes_row[j] in ("1","2","4"):
+							print(notes_row)
+							if notes_row[j] in ("1","2","4","M"):
 								note = [tickToTime(MEASURE_TICKS * section_number + i * ticks_per_row) - offset, j, 0, 0]
+								if notes_row[j] == "M":
+									note[3] = 1
 								section_notes.append(note)
 								if notes_row[j] in ("2","4"):
 									tracked_holds[j] = note
@@ -349,8 +352,6 @@ def sm_to_fnf(infile):
 									note = tracked_holds[j]
 									del tracked_holds[j]
 									note[2] = tickToTime(MEASURE_TICKS * section_number + i * ticks_per_row) - offset - note[0]
-							if notes_row[j] == "M":
-								note[3] = 1
 					
 					fnf_section["sectionNotes"] = section_notes
 					
