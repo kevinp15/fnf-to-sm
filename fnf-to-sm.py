@@ -268,7 +268,7 @@ def parse_sm_bpms(bpm_string):
 			current_time = tickToTime(current_tick)
 			tempomarkers.append(TempoMarker(current_bpm, current_tick, current_time))
 
-def sm_to_fnf(infile):
+def sm_to_fnf(infile, findDifficulty):
 	title = "Simfile"
 	fnf_notes = []
 	section_number = 0
@@ -304,12 +304,11 @@ def sm_to_fnf(infile):
 					continue
 				chartfile.readline()
 				line = chartfile.readline()
-				
-				# TODO support difficulties other than Challenge
-				if line.strip() != "Challenge:":
-				#if line.strip() != "Hard:":
+
+				if line.strip() != findDifficulty:
 					line = chartfile.readline()
 					continue
+
 				chartfile.readline()
 				chartfile.readline()
 				line = chartfile.readline()
@@ -338,7 +337,6 @@ def sm_to_fnf(infile):
 					for i in range(len(measure_notes)):
 						notes_row = measure_notes[i]
 						for j in range(len(notes_row)):
-							print(notes_row)
 							if notes_row[j] in ("1","2","4","M"):
 								note = [tickToTime(MEASURE_TICKS * section_number + i * ticks_per_row) - offset, j, 0, 0]
 								if notes_row[j] == "M":
@@ -368,18 +366,25 @@ def sm_to_fnf(infile):
 	chart_json = {}
 	chart_json["song"] = {}
 	#chart_json["song"]["song"] = title
-	chart_json["song"]["song"] = "Blammed"
+	chart_json["song"]["song"] = "Tutorial"
 	chart_json["song"]["notes"] = fnf_notes
 	chart_json["song"]["bpm"] = tempomarkers[0].getBPM()
 	chart_json["song"]["sections"] = 0
 	chart_json["song"]["needsVoices"] = False
 	chart_json["song"]["player1"] = "bf"
-	chart_json["song"]["player2"] = "pico"
+	chart_json["song"]["player2"] = "gf"
 	chart_json["song"]["sectionLengths"] = []
 	chart_json["song"]["speed"] = 2.0
 	
 	#with open("{}.json".format(title), "w") as outfile:
-	with open("blammed.json".format(title), "w") as outfile:
+	outDifficulty = ""
+	if findDifficulty == "Easy:":
+		outDifficulty = "-easy"
+	if findDifficulty == "Medium:":
+		outDifficulty = ""
+	if findDifficulty == "Hard:":
+		outDifficulty = "-hard"
+	with open("tutorial" + outDifficulty + ".json".format(title), "w") as outfile:
 		json.dump(chart_json, outfile)
 
 def usage():
@@ -398,7 +403,9 @@ def main():
 	if infile_ext == FNF_EXT:
 		fnf_to_sm(infile)
 	elif infile_ext == SM_EXT:
-		sm_to_fnf(infile)
+		sm_to_fnf(infile, "Easy:")
+		sm_to_fnf(infile, "Medium:")
+		sm_to_fnf(infile, "Hard:")
 	else:
 		print("Error: unsupported file {}".format(infile))
 		usage()
