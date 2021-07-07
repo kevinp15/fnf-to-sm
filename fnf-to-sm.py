@@ -268,7 +268,122 @@ def parse_sm_bpms(bpm_string):
 			current_time = tickToTime(current_tick)
 			tempomarkers.append(TempoMarker(current_bpm, current_tick, current_time))
 
-def sm_to_fnf(infile, findDifficulty):
+def sm_to_fnf_old(infile):
+	title = "Simfile"
+	fnf_notes = []
+	section_number = 0
+	offset = 0
+	print("Converting {} to blammed.json".format(infile))
+	with open(infile, "r") as chartfile:
+		line = chartfile.readline()
+		while len(line) > 0:
+			value = get_tag_value(line, "TITLE")
+			if value != None:
+				title = value
+				line = chartfile.readline()
+				continue
+			value = get_tag_value(line, "OFFSET")
+			if value != None:
+				offset = float(value) * 1000
+				line = chartfile.readline()
+				continue
+			value = get_tag_value(line, "BPMS")
+			if value != None:
+				parse_sm_bpms(value)
+				line = chartfile.readline()
+				continue
+
+			# regex for a sm note row
+			notes_re = re.compile("^[\\dM][\\dM][\\dM][\\dM]$")
+
+			# TODO support SSC
+			if line.strip() == "#NOTES:":
+				line = chartfile.readline()
+				if line.strip() != "dance-single:":
+					line = chartfile.readline()
+					continue
+				chartfile.readline()
+				line = chartfile.readline()
+				
+				# TODO support difficulties other than Challenge
+				if line.strip() != "Challenge:":
+				#if line.strip() != "Hard:":
+					line = chartfile.readline()
+					continue
+				chartfile.readline()
+				chartfile.readline()
+				line = chartfile.readline()
+				tracked_holds = {} # for tracking hold notes, need to add tails later
+				while line.strip()[0] != ";":
+					measure_notes = []
+					while line.strip()[0] not in (",",";"):
+						if notes_re.match(line.strip()) != None:
+							measure_notes.append(line.strip())
+						line = chartfile.readline()
+					
+					# for ticks-to-time, ticks don't have to be integer :)
+					ticks_per_row = float(MEASURE_TICKS) / len(measure_notes)
+					
+					fnf_section = {}
+					fnf_section["lengthInSteps"] = 16
+					fnf_section["bpm"] = tickToBPM(section_number * MEASURE_TICKS)
+					if len(fnf_notes) > 0:
+						fnf_section["changeBPM"] = fnf_section["bpm"] != fnf_notes[-1]["bpm"]
+					else:
+						fnf_section["changeBPM"] = False
+					fnf_section["mustHitSection"] = True
+					fnf_section["typeOfSection"] = 0
+					
+					section_notes = []
+					for i in range(len(measure_notes)):
+						notes_row = measure_notes[i]
+						for j in range(len(notes_row)):
+							print(notes_row)
+							if notes_row[j] in ("1","2","4","M"):
+								note = [tickToTime(MEASURE_TICKS * section_number + i * ticks_per_row) - offset, j, 0, 0]
+								if notes_row[j] == "M":
+									note[3] = 1
+								section_notes.append(note)
+								if notes_row[j] in ("2","4"):
+									tracked_holds[j] = note
+							# hold tails
+							elif notes_row[j] == "3":
+								if j in tracked_holds:
+									note = tracked_holds[j]
+									del tracked_holds[j]
+									note[2] = tickToTime(MEASURE_TICKS * section_number + i * ticks_per_row) - offset - note[0]
+					
+					fnf_section["sectionNotes"] = section_notes
+					
+					section_number += 1
+					fnf_notes.append(fnf_section)
+					
+					# don't skip the ending semicolon
+					if line.strip()[0] != ";":
+						line = chartfile.readline()
+			
+			line = chartfile.readline()
+			
+	# assemble the fnf json
+	chart_json = {}
+	chart_json["song"] = {}
+	#chart_json["song"]["song"] = title
+	chart_json["song"]["song"] = "Blammed"
+	chart_json["song"]["notes"] = fnf_notes
+	chart_json["song"]["bpm"] = tempomarkers[0].getBPM()
+	chart_json["song"]["sections"] = 0
+	chart_json["song"]["needsVoices"] = False
+	chart_json["song"]["player1"] = "bf"
+	chart_json["song"]["player2"] = "pico"
+	chart_json["song"]["sectionLengths"] = []
+	chart_json["song"]["speed"] = 2.0
+	
+	#with open("{}.json".format(title), "w") as outfile:
+	with open("blammed.json".format(title), "w") as outfile:
+		json.dump(chart_json, outfile)
+
+
+def sm_to_fnf_new(infile, findDifficulty):
 	title = "Simfile"
 	fnf_notes = []
 	section_number = 0
@@ -400,12 +515,19 @@ def main():
 	
 	infile = sys.argv[1]
 	infile_name, infile_ext = os.path.splitext(os.path.basename(infile))
+
+	do_old_convert = False
+	if len(sys.argv) == 3 and sys.argv[2] == "--ignore":
+		do_old_convert = True
+
 	if infile_ext == FNF_EXT:
 		fnf_to_sm(infile)
-	elif infile_ext == SM_EXT:
-		sm_to_fnf(infile, "Easy:")
-		sm_to_fnf(infile, "Medium:")
-		sm_to_fnf(infile, "Hard:")
+	elif infile_ext == SM_EXT and not do_old_convert:
+		sm_to_fnf_new(infile, "Easy:")
+		sm_to_fnf_new(infile, "Medium:")
+		sm_to_fnf_new(infile, "Hard:")
+	elif infile_ext == SM_EXT and do_old_convert:
+		sm_to_fnf_old(infile)
 	else:
 		print("Error: unsupported file {}".format(infile))
 		usage()
